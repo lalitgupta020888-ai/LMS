@@ -21,20 +21,34 @@ const Layout = ({ children }) => {
   return (
     <div className="min-h-screen bg-gray-50">
       {showApiWarning && (
-        <div className="bg-red-600 text-white px-4 py-3">
-          <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">⚠️</span>
-              <span className="font-semibold">Backend Not Configured!</span>
-              <span className="text-sm">Set VITE_API_URL in Vercel Environment Variables</span>
+        <div className="bg-red-600 text-white px-4 py-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">⚠️</span>
+                  <span className="font-bold text-lg">Backend API Not Configured!</span>
+                </div>
+                <div className="text-sm space-y-2 ml-8">
+                  <p className="font-semibold">Quick Fix (3 Steps):</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li>Deploy backend on <a href="https://railway.app" target="_blank" rel="noopener noreferrer" className="underline font-bold">Railway.app</a> (Root: <code className="bg-red-700 px-1 rounded">backend</code>)</li>
+                    <li>Go to <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline font-bold">Vercel Dashboard</a> → Settings → Environment Variables</li>
+                    <li>Add: <code className="bg-red-700 px-1 rounded">VITE_API_URL</code> = <code className="bg-red-700 px-1 rounded">https://your-backend.railway.app/api</code></li>
+                    <li>Redeploy your Vercel project</li>
+                  </ol>
+                  <p className="mt-2 text-xs opacity-90">📖 See <code className="bg-red-700 px-1 rounded">QUICK_FIX.md</code> for detailed instructions</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowApiWarning(false)}
+                className="text-white hover:text-gray-200 text-2xl font-bold flex-shrink-0"
+                aria-label="Close"
+                title="Dismiss warning"
+              >
+                ×
+              </button>
             </div>
-            <button
-              onClick={() => setShowApiWarning(false)}
-              className="text-white hover:text-gray-200 text-xl font-bold"
-              aria-label="Close"
-            >
-              ×
-            </button>
           </div>
         </div>
       )}
