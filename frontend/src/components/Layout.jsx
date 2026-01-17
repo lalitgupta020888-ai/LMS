@@ -1,7 +1,18 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 
 const Layout = ({ children }) => {
   const location = useLocation()
+  const [showApiWarning, setShowApiWarning] = useState(false)
+
+  useEffect(() => {
+    if (import.meta.env.PROD) {
+      const apiUrl = import.meta.env.VITE_API_URL
+      if (!apiUrl || apiUrl === '/api') {
+        setShowApiWarning(true)
+      }
+    }
+  }, [])
 
   const isActive = (path) => {
     return location.pathname === path ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
@@ -9,6 +20,24 @@ const Layout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {showApiWarning && (
+        <div className="bg-red-600 text-white px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⚠️</span>
+              <span className="font-semibold">Backend Not Configured!</span>
+              <span className="text-sm">Set VITE_API_URL in Vercel Environment Variables</span>
+            </div>
+            <button
+              onClick={() => setShowApiWarning(false)}
+              className="text-white hover:text-gray-200 text-xl font-bold"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
       <nav className="bg-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">

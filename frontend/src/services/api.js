@@ -19,8 +19,17 @@ const baseURL = getBaseURL()
 console.log('🔗 API Base URL:', baseURL)
 
 if (import.meta.env.PROD && baseURL === '/api') {
-  console.warn('⚠️ WARNING: Using /api in production. This will cause 404 errors!')
-  console.warn('⚠️ Please set VITE_API_URL environment variable in Vercel.')
+  console.error('❌❌❌ CRITICAL ERROR ❌❌❌')
+  console.error('⚠️ VITE_API_URL is NOT set in Vercel!')
+  console.error('⚠️ This will cause ALL API calls to fail with 404 errors!')
+  console.error('')
+  console.error('📝 QUICK FIX:')
+  console.error('1. Deploy backend on Railway: https://railway.app')
+  console.error('2. Go to Vercel Dashboard → Settings → Environment Variables')
+  console.error('3. Add: VITE_API_URL = https://your-backend.railway.app/api')
+  console.error('4. Redeploy your Vercel project')
+  console.error('')
+  console.error('📖 See QUICK_FIX.md for detailed instructions')
 }
 
 const api = axios.create({
