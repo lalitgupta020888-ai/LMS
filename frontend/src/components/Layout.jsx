@@ -4,14 +4,26 @@ import { useEffect, useState } from 'react'
 const Layout = ({ children }) => {
   const location = useLocation()
   const [showApiWarning, setShowApiWarning] = useState(false)
+  const [apiStatus, setApiStatus] = useState('checking')
 
   useEffect(() => {
-    if (import.meta.env.PROD) {
-      const apiUrl = import.meta.env.VITE_API_URL
-      if (!apiUrl || apiUrl === '/api') {
-        setShowApiWarning(true)
+    const checkApiConfig = async () => {
+      if (import.meta.env.PROD) {
+        const apiUrl = import.meta.env.VITE_API_URL
+        if (!apiUrl || apiUrl === '/api') {
+          setShowApiWarning(true)
+          setApiStatus('not-configured')
+        } else {
+          setApiStatus('configured')
+          setShowApiWarning(false)
+        }
+      } else {
+        setApiStatus('dev-mode')
+        setShowApiWarning(false)
       }
     }
+    
+    checkApiConfig()
   }, [])
 
   const isActive = (path) => {
@@ -38,6 +50,10 @@ const Layout = ({ children }) => {
                     <li>Redeploy your Vercel project</li>
                   </ol>
                   <p className="mt-2 text-xs opacity-90">📖 See <code className="bg-red-700 px-1 rounded">QUICK_FIX.md</code> for detailed instructions</p>
+                  <div className="mt-3 p-2 bg-red-700 rounded text-xs">
+                    <strong>Current Status:</strong> API URL is set to <code className="bg-red-800 px-1 rounded">/api</code> which doesn't exist in production. 
+                    You must set <code className="bg-red-800 px-1 rounded">VITE_API_URL</code> environment variable in Vercel.
+                  </div>
                 </div>
               </div>
               <button
