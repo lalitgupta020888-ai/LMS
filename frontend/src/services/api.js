@@ -4,11 +4,24 @@ const getBaseURL = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL
   }
+  
+  if (import.meta.env.PROD) {
+    console.error('❌ VITE_API_URL is not set in production!')
+    console.error('📝 Please set VITE_API_URL in Vercel Environment Variables')
+    console.error('🔗 Go to: Vercel Dashboard → Settings → Environment Variables')
+    console.error('💡 Add: VITE_API_URL = https://your-backend-url.railway.app/api')
+  }
+  
   return '/api'
 }
 
 const baseURL = getBaseURL()
 console.log('🔗 API Base URL:', baseURL)
+
+if (import.meta.env.PROD && baseURL === '/api') {
+  console.warn('⚠️ WARNING: Using /api in production. This will cause 404 errors!')
+  console.warn('⚠️ Please set VITE_API_URL environment variable in Vercel.')
+}
 
 const api = axios.create({
   baseURL: baseURL,
@@ -48,7 +61,11 @@ api.interceptors.response.use(
     } else if (error.message === 'Network Error' || !error.response) {
       error.message = 'Cannot connect to backend server. Please ensure the backend is deployed and VITE_API_URL is set correctly in Vercel environment variables.'
     } else if (error.response?.status === 404) {
-      error.message = 'API endpoint not found. Please check the backend URL configuration.'
+      if (baseURL === '/api' && import.meta.env.PROD) {
+        error.message = '404 Error: Backend not configured. Please set VITE_API_URL in Vercel Environment Variables. See VERCEL_DEPLOY.md for instructions.'
+      } else {
+        error.message = 'API endpoint not found (404). Please check the backend URL configuration. Make sure VITE_API_URL includes /api at the end.'
+      }
     }
     
     return Promise.reject(error)
