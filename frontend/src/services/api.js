@@ -7,12 +7,53 @@ const getBaseURL = () => {
   return '/api'
 }
 
+const baseURL = getBaseURL()
+console.log('🔗 API Base URL:', baseURL)
+
 const api = axios.create({
-  baseURL: getBaseURL(),
+  baseURL: baseURL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  timeout: 10000
 })
+
+api.interceptors.request.use(
+  (config) => {
+    console.log('📤 API Request:', config.method?.toUpperCase(), config.url)
+    return config
+  },
+  (error) => {
+    console.error('❌ Request Error:', error)
+    return Promise.reject(error)
+  }
+)
+
+api.interceptors.response.use(
+  (response) => {
+    console.log('✅ API Response:', response.config.url, response.status)
+    return response
+  },
+  (error) => {
+    console.error('❌ API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      message: error.message,
+      data: error.response?.data
+    })
+    
+    if (error.code === 'ECONNABORTED') {
+      error.message = 'Request timeout. Please check your internet connection or backend server.'
+    } else if (error.message === 'Network Error' || !error.response) {
+      error.message = 'Cannot connect to backend server. Please ensure the backend is deployed and VITE_API_URL is set correctly in Vercel environment variables.'
+    } else if (error.response?.status === 404) {
+      error.message = 'API endpoint not found. Please check the backend URL configuration.'
+    }
+    
+    return Promise.reject(error)
+  }
+)
 
 export const studentService = {
   getAll: (search) => api.get('/students', { params: { search } }),

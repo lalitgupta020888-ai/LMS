@@ -30,6 +30,9 @@ const Books = () => {
       setBooks(response.data)
     } catch (error) {
       console.error('📚 Error fetching books:', error)
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to fetch books. Please check if backend is deployed and VITE_API_URL is configured.'
+      alert(`Error: ${errorMsg}`)
+      setBooks([])
     } finally {
       setLoading(false)
     }
@@ -50,7 +53,8 @@ const Books = () => {
       resetForm()
     } catch (error) {
       console.error('❌ Error saving book:', error)
-      alert(error.response?.data?.error || 'Failed to save book')
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to save book. Please check if backend is deployed and VITE_API_URL is configured in Vercel.'
+      alert(`Error: ${errorMsg}`)
     } finally {
       setSubmitting(false)
     }

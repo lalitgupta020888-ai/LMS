@@ -30,6 +30,9 @@ const Students = () => {
       setStudents(response.data)
     } catch (error) {
       console.error('👥 Error fetching students:', error)
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to fetch students. Please check if backend is deployed and VITE_API_URL is configured.'
+      alert(`Error: ${errorMsg}`)
+      setStudents([])
     } finally {
       setLoading(false)
     }
@@ -50,7 +53,8 @@ const Students = () => {
       resetForm()
     } catch (error) {
       console.error('❌ Error saving student:', error)
-      alert(error.response?.data?.error || 'Failed to save student')
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to save student. Please check if backend is deployed and VITE_API_URL is configured in Vercel.'
+      alert(`Error: ${errorMsg}`)
     } finally {
       setSubmitting(false)
     }

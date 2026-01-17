@@ -25,6 +25,11 @@ const Reports = () => {
       setBooks(booksRes.data)
     } catch (error) {
       console.error('📊 Error fetching reports:', error)
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to fetch reports. Please check if backend is deployed and VITE_API_URL is configured in Vercel.'
+      alert(`Error: ${errorMsg}`)
+      setOverview(null)
+      setStudents([])
+      setBooks([])
     } finally {
       setLoading(false)
     }

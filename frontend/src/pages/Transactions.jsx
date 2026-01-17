@@ -30,6 +30,7 @@ const Transactions = () => {
       setTransactions(response.data)
     } catch (error) {
       console.error('📖 Error fetching transactions:', error)
+      setTransactions([])
     } finally {
       setLoading(false)
     }
@@ -41,6 +42,7 @@ const Transactions = () => {
       setStudents(response.data)
     } catch (error) {
       console.error('👥 Error fetching students:', error)
+      setStudents([])
     }
   }
 
@@ -50,6 +52,7 @@ const Transactions = () => {
       setBooks(response.data.filter(book => book.available_copies > 0))
     } catch (error) {
       console.error('📚 Error fetching books:', error)
+      setBooks([])
     }
   }
 
@@ -63,7 +66,8 @@ const Transactions = () => {
       resetForm()
     } catch (error) {
       console.error('❌ Error issuing book:', error)
-      alert(error.response?.data?.error || 'Failed to issue book')
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to issue book. Please check if backend is deployed and VITE_API_URL is configured in Vercel.'
+      alert(`Error: ${errorMsg}`)
     } finally {
       setSubmitting(false)
     }
