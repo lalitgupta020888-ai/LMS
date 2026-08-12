@@ -3,7 +3,7 @@
 The app is deployed from [`web/`](web) as a single Vercel project — UI and API
 together. There is no separate backend to host.
 
-- **Live:** https://lms-nu-sandy.vercel.app
+- **Live:** https://lmsathenaeum.vercel.app
 - **Repository:** https://github.com/lalitgupta020888-ai/LMS
 - **Vercel project:** `lms` (root directory `web`, production branch `main`)
 
@@ -68,7 +68,7 @@ afterwards.
 ## Verifying a deployment
 
 ```bash
-curl https://lms-nu-sandy.vercel.app/api/health
+curl https://lmsathenaeum.vercel.app/api/health
 # {"status":"OK","message":"Library Management System API is running"}
 ```
 
