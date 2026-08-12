@@ -120,12 +120,12 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState([])
   const [books, setBooks] = useState([])
   const [loading, setLoading] = useState(true)
-  const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState(null)
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      setFailed(false)
+      setFailure(null)
       const [overviewData, transactionData, bookData] = await Promise.all([
         reportService.overview(),
         transactionService.getAll(),
@@ -135,7 +135,7 @@ export default function DashboardPage() {
       setTransactions(transactionData || [])
       setBooks(bookData || [])
     } catch (error) {
-      setFailed(true)
+      setFailure(error)
       toast(error.message, 'error', 'Could not load the dashboard')
     } finally {
       setLoading(false)
@@ -213,13 +213,20 @@ export default function DashboardPage() {
     )
   }
 
-  if (failed) {
+  if (failure) {
+    // 503 means the API is up but has no database behind it — a setup problem,
+    // not an outage, so say which one rather than guessing.
+    const notConfigured = failure.status === 503
     return (
       <div className="card">
         <EmptyState
           icon={AlertTriangle}
-          title="The library API is not responding"
-          message="Start the backend with `npm start` inside the backend folder, then try again."
+          title={notConfigured ? 'The library has no database yet' : 'Could not load the library'}
+          message={
+            notConfigured
+              ? 'Set DATABASE_URL to a Postgres connection string and the tables will be created automatically. See VERCEL_DEPLOY.md for the steps.'
+              : failure.message
+          }
           action={
             <button className="btn-primary" onClick={load}>
               Retry

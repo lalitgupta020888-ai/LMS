@@ -1,10 +1,9 @@
 /**
- * Thin fetch wrapper around the Express backend.
+ * Thin fetch wrapper around this app's own API routes (app/api/**).
  *
- * In the browser we always call the relative `/api` path — next.config.mjs
- * rewrites it to the backend, so there is no CORS hop and no build-time URL
- * baked into the bundle. Set NEXT_PUBLIC_API_URL to point at a hosted API
- * instead (it must include the trailing `/api`).
+ * The browser always calls the relative `/api` path, so requests are
+ * same-origin: no CORS hop and no URL baked into the bundle. Set
+ * NEXT_PUBLIC_API_URL to call a different API instead (it must end in `/api`).
  */
 const BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
 
@@ -40,7 +39,7 @@ async function request(path, { method = 'GET', body, params } = {}) {
     })
   } catch {
     throw new ApiError(
-      'Cannot reach the backend. Make sure the API server is running on port 5000.',
+      'Could not reach the server. Check your connection and try again.',
       0
     )
   }

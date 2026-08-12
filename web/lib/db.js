@@ -1,20 +1,30 @@
 import { Pool } from 'pg'
+import { SCHEMA } from '@/lib/schema.mjs'
 
 /**
  * Postgres access for the API route handlers.
  *
- * Serverless functions are recycled constantly, so both the pool and the
- * schema bootstrap are cached on globalThis — otherwise every cold start
- * would open a new pool and re-run the DDL.
+ * Two drivers sit behind one interface:
  *
- * Any Postgres works (Neon, Supabase, Vercel Postgres, self-hosted). Point
- * DATABASE_URL at a *pooled* connection string in serverless environments.
+ *   DATABASE_URL set  → node-postgres against a real server (any Postgres:
+ *                       Neon, Supabase, Vercel Postgres, self-hosted).
+ *   not set, dev      → PGlite, a full Postgres compiled to WebAssembly that
+ *                       runs in-process and persists to web/.pglite. This
+ *                       exists so `npm run dev` works with no setup at all.
+ *   not set, prod     → DatabaseNotConfiguredError. Never fall back silently
+ *                       in production; a local file is not a real database.
+ *
+ * Serverless functions are recycled constantly, so the driver and the schema
+ * bootstrap are cached on globalThis — otherwise every cold start would open a
+ * new pool and re-run the DDL.
  */
 
 const CONNECTION_STRING =
   process.env.DATABASE_URL ||
   process.env.POSTGRES_URL ||
   process.env.POSTGRES_PRISMA_URL
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production'
 
 export class DatabaseNotConfiguredError extends Error {
   constructor() {
@@ -25,10 +35,10 @@ export class DatabaseNotConfiguredError extends Error {
   }
 }
 
-function createPool() {
-  if (!CONNECTION_STRING) throw new DatabaseNotConfiguredError()
+/* ------------------------------------------------------------ pg driver */
 
-  return new Pool({
+function createPostgresDriver() {
+  const pool = new Pool({
     connectionString: CONNECTION_STRING,
     // Hosted Postgres uses TLS with certificates we do not pin locally.
     ssl: /\blocalhost\b|\b127\.0\.0\.1\b/.test(CONNECTION_STRING)
@@ -41,61 +51,94 @@ function createPool() {
     idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 10000,
   })
-}
 
-export function getPool() {
-  if (!globalThis.__lmsPool) {
-    globalThis.__lmsPool = createPool()
+  return {
+    name: 'postgres',
+    query: (text, params) => pool.query(text, params),
+    // Multi-statement DDL. node-postgres allows it whenever no parameters are
+    // bound, because that uses the simple query protocol.
+    exec: (sql) => pool.query(sql),
+    async transaction(fn) {
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        const result = await fn(client)
+        await client.query('COMMIT')
+        return result
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {})
+        throw error
+      } finally {
+        client.release()
+      }
+    },
   }
-  return globalThis.__lmsPool
 }
 
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS students (
-    id           SERIAL PRIMARY KEY,
-    student_id   TEXT UNIQUE NOT NULL,
-    name         TEXT NOT NULL,
-    email        TEXT NOT NULL,
-    phone        TEXT,
-    course       TEXT,
-    year         TEXT,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
+/* -------------------------------------------------------- PGlite driver */
 
-  CREATE TABLE IF NOT EXISTS books (
-    id               SERIAL PRIMARY KEY,
-    isbn             TEXT UNIQUE NOT NULL,
-    title            TEXT NOT NULL,
-    author           TEXT NOT NULL,
-    category         TEXT,
-    publisher        TEXT,
-    total_copies     INTEGER NOT NULL DEFAULT 1,
-    available_copies INTEGER NOT NULL DEFAULT 1,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
+async function createEmbeddedDriver() {
+  let PGlite
+  try {
+    ;({ PGlite } = await import('@electric-sql/pglite'))
+  } catch {
+    throw new DatabaseNotConfiguredError()
+  }
 
-  CREATE TABLE IF NOT EXISTS transactions (
-    id          SERIAL PRIMARY KEY,
-    student_id  TEXT NOT NULL REFERENCES students(student_id) ON UPDATE CASCADE,
-    book_id     INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
-    issue_date  DATE NOT NULL,
-    return_date DATE,
-    due_date    DATE NOT NULL,
-    status      TEXT NOT NULL DEFAULT 'issued',
-    fine_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
+  const db = await PGlite.create({ dataDir: process.env.PGLITE_DIR || '.pglite' })
+  console.log(
+    '\n  ▲ No DATABASE_URL — using the embedded PGlite database in web/.pglite.' +
+      '\n    Set DATABASE_URL to point at a real Postgres instead.\n'
+  )
 
-  CREATE INDEX IF NOT EXISTS transactions_student_idx ON transactions (student_id);
-  CREATE INDEX IF NOT EXISTS transactions_book_idx ON transactions (book_id);
-  CREATE INDEX IF NOT EXISTS transactions_status_idx ON transactions (status);
-`
+  // PGlite reports affected rows under a different name and has no pooling,
+  // so normalise its result to the shape node-postgres returns.
+  const adapt = (target) => ({
+    query: async (text, params) => {
+      const result = await target.query(text, params)
+      return {
+        rows: result.rows ?? [],
+        rowCount: result.affectedRows ?? result.rows?.length ?? 0,
+      }
+    },
+  })
+
+  const client = adapt(db)
+
+  return {
+    name: 'pglite',
+    query: (text, params) => client.query(text, params),
+    // query() goes through the extended protocol, which permits exactly one
+    // statement; exec() is the multi-statement path.
+    exec: (sql) => db.exec(sql),
+    // PGlite drives BEGIN/COMMIT itself; handing the callback a raw client
+    // would let it issue a second BEGIN and error.
+    transaction: (fn) => db.transaction((tx) => fn(adapt(tx))),
+  }
+}
+
+function createDriver() {
+  if (CONNECTION_STRING) return Promise.resolve(createPostgresDriver())
+  if (IS_PRODUCTION) return Promise.reject(new DatabaseNotConfiguredError())
+  return createEmbeddedDriver()
+}
+
+function getDriver() {
+  if (!globalThis.__lmsDriver) {
+    globalThis.__lmsDriver = createDriver().catch((error) => {
+      globalThis.__lmsDriver = undefined
+      throw error
+    })
+  }
+  return globalThis.__lmsDriver
+}
+
 
 /** Idempotent; the first caller in a process runs it and the rest await it. */
 export function ensureSchema() {
   if (!globalThis.__lmsSchemaReady) {
-    globalThis.__lmsSchemaReady = getPool()
-      .query(SCHEMA)
+    globalThis.__lmsSchemaReady = getDriver()
+      .then((driver) => driver.exec(SCHEMA))
       .catch((error) => {
         // Let the next request retry rather than caching a failure forever.
         globalThis.__lmsSchemaReady = undefined
@@ -107,24 +150,15 @@ export function ensureSchema() {
 
 export async function query(text, params = []) {
   await ensureSchema()
-  return getPool().query(text, params)
+  const driver = await getDriver()
+  return driver.query(text, params)
 }
 
-/** Runs `fn` inside BEGIN/COMMIT, rolling back on any throw. */
+/** Runs `fn` inside a transaction, rolling back on any throw. */
 export async function withTransaction(fn) {
   await ensureSchema()
-  const client = await getPool().connect()
-  try {
-    await client.query('BEGIN')
-    const result = await fn(client)
-    await client.query('COMMIT')
-    return result
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => {})
-    throw error
-  } finally {
-    client.release()
-  }
+  const driver = await getDriver()
+  return driver.transaction(fn)
 }
 
 /* --------------------------------------------------------------- formatting */

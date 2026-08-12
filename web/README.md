@@ -17,16 +17,30 @@ Handlers (`app/api/**`) talking to Postgres over a pooled connection.
 
 ```bash
 cd web
-DATABASE_URL="postgres://…" npm run dev     # http://localhost:3000
+npm install
+npm run dev                                 # http://localhost:3000
 ```
 
-Any Postgres works — Neon, Supabase, Vercel Postgres, or a local server. The
-schema is created automatically on the first request, so an empty database is
-all you need.
+No configuration needed. With no `DATABASE_URL`, development falls back to
+**PGlite** — a complete Postgres compiled to WebAssembly that runs in-process
+and persists to `web/.pglite`. The schema builds itself on the first request.
+
+To use a real database instead:
+
+```bash
+DATABASE_URL="postgres://…" npm run dev
+```
+
+Any Postgres works — Neon, Supabase, Vercel Postgres, or a local server.
+
+**Production never falls back.** Without `DATABASE_URL`, every endpoint returns
+503 rather than quietly writing to a file that the next deployment would throw
+away.
 
 | Variable          | Purpose                                                                    |
 | ----------------- | -------------------------------------------------------------------------- |
-| `DATABASE_URL`    | **Required.** Postgres connection string. `POSTGRES_URL` is also accepted.  |
+| `DATABASE_URL`    | Postgres connection string; `POSTGRES_URL` also accepted. **Required in production.** |
+| `PGLITE_DIR`      | Where the embedded dev database lives. Default `.pglite`.                   |
 | `PGPOOL_MAX`      | Connections per instance. Default 3.                                        |
 | `NEXT_PUBLIC_API_URL` | Points the browser at an external API instead of this app's own routes. Must end in `/api`. |
 
@@ -38,12 +52,17 @@ exhaust the server's limit.
 
 ```bash
 cd web
+node scripts/migrate-from-sqlite.mjs                    # embedded dev database
 DATABASE_URL="postgres://…" node scripts/migrate-from-sqlite.mjs
 ```
 
 Reads `../backend/library.db` by default (pass another path as the first
-argument). Every insert is `ON CONFLICT DO NOTHING`, so it is safe to re-run;
-id sequences are reset afterwards so new records do not collide.
+argument) and creates the schema if the target is empty. Every insert is
+`ON CONFLICT DO NOTHING`, so it is safe to re-run; id sequences are reset
+afterwards so new records do not collide.
+
+Stop the dev server before migrating into the embedded database — PGlite holds
+an exclusive lock on its data directory.
 
 ## Pages
 
@@ -83,7 +102,8 @@ web/
 │   └── ui.jsx            # modal, badge, table skeleton, form field, …
 ├── lib/
 │   ├── api.js            # service wrappers the browser calls
-│   ├── db.js             # pool, schema bootstrap, date formatting helpers
+│   ├── db.js             # driver selection, schema bootstrap, date helpers
+│   ├── schema.mjs        # the DDL, shared with the migration script
 │   ├── route-helpers.js  # JSON responses and Postgres error mapping
 │   └── format.js         # dates, currency, loan state, CSV export
 └── scripts/

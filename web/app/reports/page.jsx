@@ -91,13 +91,13 @@ export default function ReportsPage() {
   const [bookReport, setBookReport] = useState([])
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
-  const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState(null)
   const [tab, setTab] = useState('books')
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      setFailed(false)
+      setFailure(null)
       const [overviewData, students, booksData, transactionData] = await Promise.all([
         reportService.overview(),
         reportService.students(),
@@ -109,7 +109,7 @@ export default function ReportsPage() {
       setBookReport(booksData || [])
       setTransactions(transactionData || [])
     } catch (error) {
-      setFailed(true)
+      setFailure(error)
       toast(error.message, 'error', 'Could not build the reports')
     } finally {
       setLoading(false)
@@ -220,13 +220,21 @@ export default function ReportsPage() {
     )
   }
 
-  if (failed) {
+  if (failure) {
     return (
       <div className="card">
         <EmptyState
           icon={AlertTriangle}
-          title="Reports are unavailable"
-          message="The library API did not respond. Start the backend and try again."
+          title={
+            failure.status === 503
+              ? 'The library has no database yet'
+              : 'Reports are unavailable'
+          }
+          message={
+            failure.status === 503
+              ? 'Set DATABASE_URL to a Postgres connection string and the tables will be created automatically. See VERCEL_DEPLOY.md for the steps.'
+              : failure.message
+          }
           action={
             <button className="btn-primary" onClick={load}>
               <RefreshCw className="h-4 w-4" /> Retry
