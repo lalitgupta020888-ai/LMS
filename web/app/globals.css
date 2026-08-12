@@ -1,0 +1,304 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------
+   Theme tokens. Light is the bare :root so every color has a value
+   even before the theme class lands; .dark overrides the same names.
+------------------------------------------------------------------- */
+:root {
+  --canvas: 244 247 252;
+  --surface: 255 255 255;
+  --elevated: 255 255 255;
+  --hairline: 15 23 42;
+  --ink: 15 23 42;
+  --muted: 71 85 105;
+  --faint: 148 163 184;
+
+  --glass: 255 255 255;
+  --glass-alpha: 0.86;
+  --hairline-alpha: 0.1;
+
+  --aurora-1: 99 102 241;
+  --aurora-2: 168 85 247;
+  --aurora-3: 34 211 238;
+  --aurora-opacity: 0.13;
+
+  --shadow-color: 15 23 42;
+}
+
+.dark {
+  --canvas: 7 11 20;
+  --surface: 255 255 255;
+  --elevated: 17 24 39;
+  --hairline: 255 255 255;
+  --ink: 232 236 245;
+  --muted: 148 163 184;
+  --faint: 100 116 139;
+
+  --glass: 255 255 255;
+  --glass-alpha: 0.045;
+  --hairline-alpha: 0.1;
+
+  --aurora-opacity: 0.32;
+  --shadow-color: 2 6 23;
+}
+
+* {
+  border-color: rgb(var(--hairline) / var(--hairline-alpha));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--ink));
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+}
+
+/* Ambient aurora wash behind the whole app. Pure CSS, no images. */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.aurora span {
+  position: absolute;
+  display: block;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: var(--aurora-opacity);
+  will-change: transform;
+}
+
+.aurora span:nth-child(1) {
+  width: 46rem;
+  height: 46rem;
+  top: -16rem;
+  left: -10rem;
+  background: rgb(var(--aurora-1));
+  animation: float 18s ease-in-out infinite;
+}
+
+.aurora span:nth-child(2) {
+  width: 38rem;
+  height: 38rem;
+  top: 10%;
+  right: -12rem;
+  background: rgb(var(--aurora-2));
+  animation: float 22s ease-in-out infinite reverse;
+}
+
+.aurora span:nth-child(3) {
+  width: 32rem;
+  height: 32rem;
+  bottom: -14rem;
+  left: 30%;
+  background: rgb(var(--aurora-3));
+  animation: float 26s ease-in-out infinite;
+}
+
+/* Fine grain over the aurora so large gradients don't band. */
+.aurora::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora span {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+  /* Frosted panel — the workhorse surface of the whole UI. */
+  .glass {
+    background-color: rgb(var(--glass) / var(--glass-alpha));
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgb(var(--hairline) / var(--hairline-alpha));
+  }
+
+  .card {
+    @apply glass rounded-2xl;
+    box-shadow: 0 24px 60px -34px rgb(var(--shadow-color) / 0.5);
+  }
+
+  .card-hover {
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.35s ease;
+  }
+
+  .card-hover:hover {
+    transform: translateY(-3px);
+    border-color: rgb(99 102 241 / 0.45);
+    box-shadow: 0 30px 70px -32px rgb(79 70 229 / 0.5);
+  }
+
+  .headline {
+    @apply font-display font-semibold tracking-tight;
+  }
+
+  /* Gradient text used for page titles and hero numbers. */
+  .gradient-text {
+    background-image: linear-gradient(
+      100deg,
+      rgb(var(--ink)) 0%,
+      rgb(var(--ink)) 30%,
+      #818cf8 65%,
+      #c084fc 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+           text-sm font-medium transition-all duration-200
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn text-white;
+    background-image: linear-gradient(135deg, #6366f1 0%, #8b5cf6 55%, #a855f7 100%);
+    box-shadow: 0 10px 30px -12px rgb(99 102 241 / 0.9);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: 0 16px 38px -12px rgb(99 102 241 / 1);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .btn-ghost {
+    @apply btn text-muted hover:text-ink;
+    background-color: rgb(var(--hairline) / 0.04);
+    border: 1px solid rgb(var(--hairline) / var(--hairline-alpha));
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    background-color: rgb(var(--hairline) / 0.08);
+    border-color: rgb(99 102 241 / 0.4);
+  }
+
+  .btn-danger {
+    @apply btn text-rose-500;
+    background-color: rgb(244 63 94 / 0.1);
+    border: 1px solid rgb(244 63 94 / 0.25);
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background-color: rgb(244 63 94 / 0.18);
+  }
+
+  .input {
+    @apply w-full rounded-xl px-3.5 py-2.5 text-sm text-ink
+           placeholder:text-faint transition-all duration-200
+           focus:outline-none;
+    background-color: rgb(var(--hairline) / 0.04);
+    border: 1px solid rgb(var(--hairline) / var(--hairline-alpha));
+  }
+
+  .input:focus {
+    border-color: rgb(99 102 241 / 0.7);
+    box-shadow: 0 0 0 4px rgb(99 102 241 / 0.15);
+    background-color: rgb(var(--hairline) / 0.06);
+  }
+
+  .input-error {
+    border-color: rgb(244 63 94 / 0.7);
+  }
+
+  .input-error:focus {
+    border-color: rgb(244 63 94 / 0.8);
+    box-shadow: 0 0 0 4px rgb(244 63 94 / 0.15);
+  }
+
+  /* Native selects need explicit colors or the popup inherits the page. */
+  select.input option {
+    background-color: rgb(var(--elevated));
+    color: rgb(var(--ink));
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg;
+    background-color: rgb(var(--hairline) / 0.07);
+  }
+
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--hairline) / 0.09),
+      transparent
+    );
+    animation: shimmer 1.6s infinite;
+  }
+}
+
+/* Scrollbars, themed. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--hairline) / 0.18);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--hairline) / 0.3);
+  background-clip: content-box;
+}
+
+/* Recharts tooltips inherit inline styles; nudge the wrapper only. */
+.recharts-default-tooltip {
+  border-radius: 12px !important;
+}
+
+.recharts-cartesian-axis-tick text {
+  fill: rgb(var(--faint));
+  font-size: 11px;
+}

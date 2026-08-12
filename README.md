@@ -14,7 +14,16 @@ A comprehensive Library Management System built with React and Node.js for manag
 
 ## Tech Stack
 
-### Frontend
+### Frontend — `web/` (current)
+- Next.js 14 (App Router)
+- React 18
+- TailwindCSS (Styling)
+- Recharts (Charts)
+- lucide-react (Icons)
+
+See [web/README.md](web/README.md) for details.
+
+### Frontend — `frontend/` (legacy Vite app, superseded by `web/`)
 - React 18
 - React Router DOM
 - Formik & Yup (Form handling & validation)
@@ -76,9 +85,9 @@ The backend server will run on `http://localhost:5000`
 
 ### Frontend Setup
 
-1. Navigate to frontend directory:
+1. Navigate to the web directory:
 ```bash
-cd frontend
+cd web
 ```
 
 2. Install dependencies:
