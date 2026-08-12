@@ -1,146 +1,92 @@
-# Vercel Deployment Guide - Fix API Issues
+# Deployment
 
-## ⚠️ Current Problem
+The app is deployed from [`web/`](web) as a single Vercel project — UI and API
+together. There is no separate backend to host.
 
-The frontend API calls are failing because:
-1. Backend is not deployed yet
-2. `VITE_API_URL` environment variable is not set in Vercel
-3. Frontend is trying to call `/api` which doesn't exist in production
+- **Live:** https://lms-nu-sandy.vercel.app
+- **Repository:** https://github.com/lalitgupta020888-ai/LMS
+- **Vercel project:** `lms` (root directory `web`, production branch `main`)
 
-## ✅ Solution Applied
+Pushing to `main` triggers a production build automatically.
 
-1. ✅ API service updated to use environment variables
-2. ✅ Better error messages added to help debug issues
-3. ✅ Console logging added to see what URL is being used
+> `QUICK_FIX.md` and `FIX_INSTRUCTIONS.md` describe the retired Vite frontend
+> and its `VITE_API_URL` problem. That setup no longer exists — the browser
+> calls this app's own `/api` routes, so there is no API URL to configure and
+> no CORS hop. Both files are kept only for history.
 
-## 🚀 Quick Fix Steps
+## The one thing you must set: `DATABASE_URL`
 
-The API service has been updated to use environment variables. Now you need to:
+The API needs Postgres. Vercel's filesystem is ephemeral, so the old
+SQLite file cannot be used in production — writes would vanish between
+requests. Until `DATABASE_URL` is set, every endpoint returns:
 
-### Step 1: Deploy Backend (REQUIRED - Choose one option)
+```json
+{ "error": "The database is not configured. Set DATABASE_URL in the environment." }
+```
 
-**⚠️ IMPORTANT:** Without a deployed backend, the frontend cannot work. You MUST deploy the backend first.
+### Create the database
 
-#### Option A: Deploy on Railway (Recommended)
+1. Open the [project's Storage tab](https://vercel.com/lalit-kumar-guptas-projects-7503c351/lms/stores).
+2. **Create Database → Neon (Serverless Postgres) → Free plan.**
+3. Connect it to the `lms` project for **Production, Preview and Development**.
 
-1. Go to [Railway.app](https://railway.app) and sign up/login
-2. Click "New Project" → "Deploy from GitHub repo"
-3. Select your LMS repository
-4. Set the root directory to `backend`
-5. Railway will automatically detect Node.js and deploy
-6. Copy the deployed URL (e.g., `https://your-app.railway.app`)
+Vercel injects `DATABASE_URL` (and `POSTGRES_URL`) automatically and redeploys.
+The schema creates itself on the first request — no migration step needed for a
+fresh database.
 
-#### Option B: Deploy on Render
+Any other Postgres works too. To use one, add the variable by hand:
 
-1. Go to [Render.com](https://render.com) and sign up/login
-2. Click "New" → "Web Service"
-3. Connect your GitHub repository
-4. Set:
-   - **Root Directory**: `backend`
-   - **Build Command**: `npm install`
-   - **Start Command**: `npm start`
-5. Deploy and copy the URL (e.g., `https://your-app.onrender.com`)
+```bash
+vercel env add DATABASE_URL production
+```
 
-#### Option C: Deploy on Vercel (Serverless - Advanced)
+Use a **pooled** connection string in serverless environments (for Neon, the
+host containing `-pooler`). Many short-lived function instances each opening
+direct connections will exhaust the server's connection limit.
 
-For Vercel, you'll need to convert the backend to serverless functions. This is more complex but keeps everything on one platform.
+### Move the old SQLite data across
 
-### Step 2: Configure Frontend Environment Variable in Vercel (REQUIRED)
+Only needed if you want the records from `backend/library.db`:
 
-1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
-2. Select your project (`mpitlms` or your project name)
-3. Go to **Settings** → **Environment Variables**
-4. Click **Add New**
-5. Add environment variable:
-   - **Key**: `VITE_API_URL`
-   - **Value**: Your backend URL + `/api`
-     - Example for Railway: `https://your-app-name.railway.app/api`
-     - Example for Render: `https://your-app-name.onrender.com/api`
-   - **Environment**: Select **Production**, **Preview**, and **Development** (all three)
-6. Click **Save**
+```bash
+cd web
+vercel env pull .env.local          # fetches DATABASE_URL
+DATABASE_URL="…" node scripts/migrate-from-sqlite.mjs
+```
 
-**⚠️ CRITICAL:** Make sure to include `/api` at the end of the URL!
+Safe to re-run — existing rows are left untouched and id sequences are reset
+afterwards.
 
-### Step 3: Redeploy (REQUIRED)
+## Environment variables
 
-After adding the environment variable, you MUST redeploy:
+| Variable              | Where    | Purpose                                                        |
+| --------------------- | -------- | -------------------------------------------------------------- |
+| `DATABASE_URL`        | Server   | **Required.** Postgres connection string.                       |
+| `PGPOOL_MAX`          | Server   | Connections per instance. Default 3.                            |
+| `NEXT_PUBLIC_API_URL` | Browser  | Only if you want the UI to call an API other than its own routes. |
 
-1. Go to **Deployments** tab in Vercel
-2. Find the latest deployment
-3. Click the three dots (⋯) menu
-4. Click **Redeploy**
-5. Wait for deployment to complete
+## Verifying a deployment
 
-**OR** simply push a new commit to GitHub to trigger automatic redeployment.
+```bash
+curl https://lms-nu-sandy.vercel.app/api/health
+# {"status":"OK","message":"Library Management System API is running"}
+```
 
-**⚠️ IMPORTANT:** Environment variables only take effect on NEW deployments. Old deployments won't have the new variable!
+`/api/health` runs a real query, so `OK` means the database is reachable, not
+just that the function booted.
 
-## ✅ Verification
+## Deploying by hand
 
-After redeployment, test these features on https://mpitlms.vercel.app:
-- ✅ Add Student - Should work now
-- ✅ Add Book - Should work now
-- ✅ Issue Book - Should work now
-- ✅ View Reports - Should work now
+```bash
+vercel deploy --prod        # from the repository root, not from web/
+```
 
-**How to verify it's working:**
-1. Open browser DevTools (F12)
-2. Go to Console tab
-3. You should see: `🔗 API Base URL: https://your-backend-url/api`
-4. Try adding a student - check Network tab to see if API calls succeed
-5. If you see errors, they will now show helpful messages
+Run it from the root: the project's root directory is `web`, and Vercel applies
+that to whatever is uploaded. Deploying from inside `web/` makes it look for
+`web/web` and fail.
 
-## 🔧 Troubleshooting
+## A note on access
 
-### If API calls still fail after following all steps:
-
-1. **Check Environment Variable:**
-   - Go to Vercel → Settings → Environment Variables
-   - Verify `VITE_API_URL` exists and has correct value
-   - Make sure it includes `/api` at the end
-   - Example: `https://your-backend.railway.app/api` ✅
-   - Wrong: `https://your-backend.railway.app` ❌
-
-2. **Check Backend is Running:**
-   - Visit your backend URL directly: `https://your-backend.railway.app/api/health`
-   - Should return: `{"status":"OK","message":"Library Management System API is running"}`
-   - If it doesn't work, backend is not deployed correctly
-
-3. **Check Browser Console:**
-   - Open DevTools (F12) → Console
-   - Look for: `🔗 API Base URL: ...`
-   - If it shows `/api`, the environment variable is not set
-   - If it shows your backend URL, check Network tab for actual errors
-
-4. **Check Network Tab:**
-   - Open DevTools → Network tab
-   - Try adding a student
-   - Look for failed requests (red)
-   - Check the error message
-
-5. **Check CORS:**
-   - Backend should have CORS enabled (already in `server.js`)
-   - If you see CORS errors, check backend logs
-
-### Common Error Messages:
-
-- **"Cannot connect to backend server"**: 
-  - Backend not deployed OR
-  - `VITE_API_URL` not set in Vercel OR
-  - Wrong URL in environment variable
-
-- **"404 Not Found"**: 
-  - Backend URL is wrong OR
-  - Missing `/api` at the end of URL
-
-- **"Network Error"**: 
-  - Backend server is down OR
-  - CORS issue (check backend logs)
-
-## Development vs Production
-
-- **Development**: Uses Vite proxy (`/api` → `localhost:5000`)
-- **Production**: Uses `VITE_API_URL` environment variable
-
-The code automatically detects which environment to use, so no code changes needed when switching between dev and production!
-
+The project has Deployment Protection disabled, so the URL is public. The LMS
+itself has no login — anyone with the link can read and change the records.
+Add authentication before putting real student data in it.
