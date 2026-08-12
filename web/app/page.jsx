@@ -74,6 +74,17 @@ function ChartTooltip({ active, payload, label }) {
   )
 }
 
+/*
+ * The API stores plain calendar dates ("2026-08-12") with no timezone. Reading
+ * a bucket key off toISOString() would convert local midnight to UTC first,
+ * which lands on the previous day for any timezone ahead of UTC — so today's
+ * loans would never match today's bucket. Build the key from local parts.
+ */
+const dayKey = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate()
+  ).padStart(2, '0')}`
+
 /** Buckets issue/return counts into the trailing 14 days. */
 function buildActivitySeries(transactions) {
   const days = []
@@ -82,7 +93,7 @@ function buildActivitySeries(transactions) {
     date.setHours(0, 0, 0, 0)
     date.setDate(date.getDate() - offset)
     days.push({
-      key: date.toISOString().slice(0, 10),
+      key: dayKey(date),
       label: date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
       Issued: 0,
       Returned: 0,

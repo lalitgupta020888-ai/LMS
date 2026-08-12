@@ -1,30 +1,49 @@
-# Athenaeum — LMS frontend
+# Athenaeum — Library Management System
 
-The Next.js frontend for the Library Management System. It replaces the older
-Vite app in [`../frontend`](../frontend) and talks to the same Express + SQLite
-backend in [`../backend`](../backend).
+A full-stack Next.js app: the UI *and* the API live here, backed by Postgres.
+It replaces the Vite frontend in [`../frontend`](../frontend) and the Express +
+SQLite server in [`../backend`](../backend), both of which are kept only for
+reference.
+
+## Why Postgres and not the old SQLite server
+
+Vercel runs each request in a short-lived function with an ephemeral
+filesystem. A SQLite file written there disappears between invocations and is
+not shared across instances, so the Express backend could not be deployed as-is
+without silently losing data. The API was therefore ported to Next.js Route
+Handlers (`app/api/**`) talking to Postgres over a pooled connection.
 
 ## Running it
 
-The backend must be up first — it owns the database and every API route.
-
 ```bash
-cd backend && npm start      # http://localhost:5000
-cd web && npm run dev        # http://localhost:3000
+cd web
+DATABASE_URL="postgres://…" npm run dev     # http://localhost:3000
 ```
 
-`next.config.mjs` rewrites `/api/*` to `http://localhost:5000/api/*`, so the
-browser only ever calls a same-origin path. No CORS hop, no API URL baked into
-the bundle.
+Any Postgres works — Neon, Supabase, Vercel Postgres, or a local server. The
+schema is created automatically on the first request, so an empty database is
+all you need.
 
-| Variable          | Purpose                                                        |
-| ----------------- | -------------------------------------------------------------- |
-| `BACKEND_URL`     | Where the rewrite proxies to. Default `http://localhost:5000`.  |
-| `NEXT_PUBLIC_API_URL` | Bypasses the rewrite and calls an absolute API URL from the browser. Must end in `/api`. |
+| Variable          | Purpose                                                                    |
+| ----------------- | -------------------------------------------------------------------------- |
+| `DATABASE_URL`    | **Required.** Postgres connection string. `POSTGRES_URL` is also accepted.  |
+| `PGPOOL_MAX`      | Connections per instance. Default 3.                                        |
+| `NEXT_PUBLIC_API_URL` | Points the browser at an external API instead of this app's own routes. Must end in `/api`. |
 
-For a hosted deployment where the API lives on another host, set `BACKEND_URL`
-on the Next server and leave `NEXT_PUBLIC_API_URL` unset — the proxy keeps the
-API same-origin and avoids CORS entirely.
+In serverless environments use a **pooled** connection string (for Neon, the
+`-pooler` host) — many small instances each opening direct connections will
+exhaust the server's limit.
+
+## Migrating the old SQLite data
+
+```bash
+cd web
+DATABASE_URL="postgres://…" node scripts/migrate-from-sqlite.mjs
+```
+
+Reads `../backend/library.db` by default (pass another path as the first
+argument). Every insert is `ON CONFLICT DO NOTHING`, so it is safe to re-run;
+id sequences are reset afterwards so new records do not collide.
 
 ## Pages
 
@@ -54,17 +73,31 @@ web/
 ├── app/
 │   ├── layout.jsx        # fonts, theme bootstrap, providers, shell
 │   ├── globals.css       # design tokens, aurora background, component classes
-│   └── <route>/page.jsx  # one client component per page
+│   ├── <route>/page.jsx  # one client component per page
+│   └── api/**/route.js   # the API: students, books, transactions, reports
 ├── components/
 │   ├── Shell.jsx         # sidebar, top bar, mobile drawer
 │   ├── CommandPalette.jsx
 │   ├── StatCard.jsx
 │   ├── providers.jsx     # theme + toast context
 │   └── ui.jsx            # modal, badge, table skeleton, form field, …
-└── lib/
-    ├── api.js            # typed-ish service wrappers over fetch
-    └── format.js         # dates, currency, loan state, CSV export
+├── lib/
+│   ├── api.js            # service wrappers the browser calls
+│   ├── db.js             # pool, schema bootstrap, date formatting helpers
+│   ├── route-helpers.js  # JSON responses and Postgres error mapping
+│   └── format.js         # dates, currency, loan state, CSV export
+└── scripts/
+    └── migrate-from-sqlite.mjs
 ```
+
+### A note on dates
+
+node-postgres returns `DATE` columns as JavaScript `Date` objects, which
+stringify as `"Sat Jan 17 2026 …"` rather than `"2026-01-17"`. The dashboard
+buckets loans by day using those strings, so every query formats dates in SQL
+via the `DATE()` / `STAMP()` helpers in `lib/db.js`. Keep using them when
+adding queries, or day-level grouping will break in ways that only show up in
+timezones ahead of UTC.
 
 Colors are CSS variables on `:root` / `.dark` (see `globals.css`) surfaced to
 Tailwind as `canvas`, `surface`, `ink`, `muted`, `faint` and `hairline`. Use
